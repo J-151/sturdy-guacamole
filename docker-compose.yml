@@ -1,0 +1,23 @@
+# One command to run everything:   docker compose up --build
+# Then open http://localhost:8080
+services:
+  backend:
+    build:
+      context: .                      # repo root
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"                   # API + Swagger docs at http://localhost:8000/api/docs
+    volumes:
+      # Keep the downloaded data on YOUR disk so it survives container rebuilds
+      # and so you can commit it for the Vercel deployment.
+      - ./backend/data:/app/backend/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "8080:80"                     # the web app
+    depends_on:
+      - backend
+    restart: unless-stopped
