@@ -1,0 +1,19 @@
+{
+  "source": "elexon",
+  "fetched_at": "2026-11-02T17:32:04Z",
+  "delivery_window": [
+    "2026-01-01",
+    "2026-01-31"
+  ],
+  "actuals_rows": 1488,
+  "forecast_rows": 14383,
+  "forecast_publish_times": 264,
+  "actuals_range": [
+    "2026-01-01T00:00:00Z",
+    "2026-01-31T23:30:00Z"
+  ],
+  "forecast_publish_range": [
+    "2025-12-30T02:30:00Z",
+    "2026-01-31T22:30:00Z"
+  ]
+}
