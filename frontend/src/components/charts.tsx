@@ -24,6 +24,19 @@ const gwTick = (v: number) => `${Math.round(v / 100) / 10}`;
 const fmt = (v: unknown, digits = 0) =>
   typeof v === "number" ? v.toLocaleString("en-GB", { maximumFractionDigits: digits }) : "n/a";
 
+/** Coerce anything numeric-looking to a number, everything else to null (so charts never get strings/NaN). */
+const num = (v: unknown): number | null => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+/** True when a series has many gaps: lines would be broken, so we also draw small dots. */
+const isSparse = (values: (number | null)[]): boolean => {
+  const present = values.filter((v) => v != null).length;
+  return present > 0 && present < values.length * 0.9;
+};
+
 /** Tick positions every `stepHours`, aligned to whole hours. */
 function timeTicks(min: number, max: number, stepHours: number): number[] {
   const step = stepHours * 3600_000;
@@ -37,12 +50,12 @@ function timeTicks(min: number, max: number, stepHours: number): number[] {
 // ---------------------------------------------------------------------------
 export function DecisionChart({ periods, showActual, showBand }: { periods: Period[]; showActual: boolean; showBand: boolean }) {
   const data = periods.map((p) => {
-    const lo = p.band_low_mw ?? null;
-    const hi = p.band_high_mw ?? null;
+    const lo = num(p.band_low_mw);
+    const hi = num(p.band_high_mw);
     return {
       ts: new Date(p.t).getTime(),
-      forecast: p.forecast_mw,
-      actual: showActual ? p.actual_mw : null,
+      forecast: num(p.forecast_mw),
+      actual: showActual ? num(p.actual_mw) : null,
       bandLow: showBand ? lo : null,
       bandRange: showBand && lo != null && hi != null ? hi - lo : null,
       publish: p.publish_time,
@@ -54,13 +67,15 @@ export function DecisionChart({ periods, showActual, showBand }: { periods: Peri
   });
   const ts = data.map((d) => d.ts);
   const ticks = timeTicks(Math.min(...ts), Math.max(...ts), 3);
+  const sparseForecast = isSparse(data.map((d) => d.forecast));
+  const sparseActual = isSparse(data.map((d) => d.actual));
 
   return (
     <ResponsiveContainer width="100%" height={380}>
       <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
         <CartesianGrid stroke={COLORS.grid} vertical={false} />
         <XAxis dataKey="ts" type="number" scale="time" domain={["dataMin", "dataMax"]} ticks={ticks} tickFormatter={(v: number) => clock(new Date(v).toISOString())} tick={axis} />
-        <YAxis tickFormatter={gwTick} tick={axis} width={44} label={{ value: "GW", angle: -90, position: "insideLeft", fill: COLORS.muted, fontSize: 12 }} />
+        <YAxis domain={[0, "auto"]} tickFormatter={gwTick} tick={axis} width={44} label={{ value: "GW", angle: -90, position: "insideLeft", fill: COLORS.muted, fontSize: 12 }} />
         <Tooltip
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null;
@@ -84,10 +99,10 @@ export function DecisionChart({ periods, showActual, showBand }: { periods: Peri
           }}
         />
         <Legend verticalAlign="top" height={32} />
-        {showBand && <Area dataKey="bandLow" stackId="band" stroke="none" fill="transparent" legendType="none" isAnimationActive={false} />}
-        {showBand && <Area dataKey="bandRange" stackId="band" stroke="none" fill={COLORS.band} fillOpacity={0.16} name="Likely range (P10-P90)" isAnimationActive={false} />}
-        <Line dataKey="forecast" name="Forecast available at decision time" stroke={COLORS.forecast} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-        {showActual && <Line dataKey="actual" name="Actual (hindsight)" stroke={COLORS.actual} strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} />}
+        {showBand && <Area dataKey="bandLow" stackId="band" stroke="none" fill="transparent" legendType="none" connectNulls isAnimationActive={false} />}
+        {showBand && <Area dataKey="bandRange" stackId="band" stroke="none" fill={COLORS.band} fillOpacity={0.16} name="Likely range (P10-P90)" connectNulls isAnimationActive={false} />}
+        <Line dataKey="forecast" name="Forecast available at decision time" stroke={COLORS.forecast} strokeWidth={2.5} dot={sparseForecast ? { r: 3 } : false} connectNulls isAnimationActive={false} />
+        {showActual && <Line dataKey="actual" name="Actual (hindsight)" stroke={COLORS.actual} strokeWidth={2} strokeDasharray="5 4" dot={sparseActual ? { r: 2.5 } : false} connectNulls isAnimationActive={false} />}
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -97,10 +112,11 @@ export function DecisionChart({ periods, showActual, showBand }: { periods: Peri
 // 2. Long actual-vs-forecast series (accuracy tab)
 // ---------------------------------------------------------------------------
 export function SeriesChart({ series }: { series: Period[] }) {
-  const data = series.map((p) => ({ ts: new Date(p.t).getTime(), forecast: p.forecast_mw, actual: p.actual_mw }));
+  const data = series.map((p) => ({ ts: new Date(p.t).getTime(), forecast: num(p.forecast_mw), actual: num(p.actual_mw) }));
   const ts = data.map((d) => d.ts);
   const spanDays = (Math.max(...ts) - Math.min(...ts)) / 86400_000;
   const ticks = timeTicks(Math.min(...ts), Math.max(...ts), spanDays > 14 ? 24 * 4 : spanDays > 4 ? 24 : 6);
+  const sparseForecast = isSparse(data.map((d) => d.forecast));
   return (
     <ResponsiveContainer width="100%" height={340}>
       <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
@@ -112,8 +128,8 @@ export function SeriesChart({ series }: { series: Period[] }) {
           formatter={(v, name) => [`${fmt(v)} MW`, name]}
         />
         <Legend verticalAlign="top" height={32} />
-        <Line dataKey="actual" name="Actual" stroke={COLORS.actual} strokeWidth={1.6} dot={false} isAnimationActive={false} />
-        <Line dataKey="forecast" name="Forecast" stroke={COLORS.forecast} strokeWidth={1.6} dot={false} isAnimationActive={false} />
+        <Line dataKey="actual" name="Actual" stroke={COLORS.actual} strokeWidth={1.6} dot={false} connectNulls isAnimationActive={false} />
+        <Line dataKey="forecast" name="Forecast" stroke={COLORS.forecast} strokeWidth={1.6} dot={sparseForecast ? { r: 1.5 } : false} connectNulls isAnimationActive={false} />
       </LineChart>
     </ResponsiveContainer>
   );
