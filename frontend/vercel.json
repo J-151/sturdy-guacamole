@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://sturdy-guacamole1.vercel.app/api/:path*"
+      "destination": "https://sturdy-guacamole-gbgw.vercel.app/api/:path*"
     }
   ]
 }
