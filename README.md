@@ -11,7 +11,7 @@ Scope follows the brief: national-level wind only, from two Elexon BMRS datasets
 | | |
 |---|---|
 | Live app | `https://sturdy-guacamole-five.vercel.app/` |
-| Video demo | `<PASTE UNLISTED YOUTUBE URL>` |
+| Video demo | `https://youtu.be/eody5C60ih4?si=Pl4Rticw5H18toSH` |
 | Stack | React 18 + TypeScript + Vite + Recharts · Python 3.12 + FastAPI + pandas · Docker · Vercel |
 
 ---
